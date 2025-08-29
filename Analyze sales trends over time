@@ -1,0 +1,63 @@
+# Analyze sales trends over time: monthly and yearly, with plots
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Ensure dataframe and parse dates if needed
+try:
+    superstore_df
+except NameError:
+    superstore_df = pd.read_csv(r"C:\Users\FrankJR\Downloads\Portfolio\Superstore Dataset\Sample - Superstore.csv", encoding='ISO-8859-1')
+    superstore_df.columns = [c.strip() for c in superstore_df.columns]
+
+# Date parsing robustness: try specific formats then coerce
+if 'Order_Date' in superstore_df.columns:
+    if not pd.api.types.is_datetime64_any_dtype(superstore_df['Order_Date']):
+        # try common formats first
+        parsed_1 = pd.to_datetime(superstore_df['Order_Date'], errors='coerce', format='%m/%d/%Y')
+        needs = parsed_1.isna()
+        if needs.any():
+            parsed_2 = pd.to_datetime(superstore_df.loc[needs, 'Order_Date'], errors='coerce', dayfirst=True)
+            parsed_1.loc[needs] = parsed_2
+        superstore_df['Order_Date'] = parsed_1
+
+# Keep only rows with valid dates and numeric sales
+superstore_df['Sales'] = pd.to_numeric(superstore_df['Sales'], errors='coerce')
+trend_df = superstore_df.dropna(subset=['Order_Date','Sales']).copy()
+
+# Build time aggregations
+trend_df = trend_df.sort_values('Order_Date')
+trend_df['Year'] = trend_df['Order_Date'].dt.year
+trend_df['Month'] = trend_df['Order_Date'].dt.to_period('M').dt.to_timestamp()
+
+monthly_sales = trend_df.groupby('Month', as_index=False)['Sales'].sum()
+yearly_sales = trend_df.groupby('Year', as_index=False)['Sales'].sum()
+
+print(monthly_sales.head())
+print(yearly_sales)
+
+# Save outputs
+monthly_file = 'monthly_sales.csv'
+yearly_file = 'yearly_sales.csv'
+monthly_sales.to_csv(monthly_file, index=False)
+yearly_sales.to_csv(yearly_file, index=False)
+print('Saved monthly to ' + monthly_file)
+print('Saved yearly to ' + yearly_file)
+
+# Plot monthly trend
+plt.figure(figsize=(10,4))
+sns.lineplot(data=monthly_sales, x='Month', y='Sales')
+plt.title('Monthly Sales Trend')
+plt.xlabel('Month')
+plt.ylabel('Sales')
+plt.tight_layout()
+plt.show()
+
+# Plot yearly totals
+plt.figure(figsize=(6,4))
+sns.barplot(data=yearly_sales, x='Year', y='Sales')
+plt.title('Yearly Sales Totals')
+plt.xlabel('Year')
+plt.ylabel('Sales')
+plt.tight_layout()
+plt.show()
