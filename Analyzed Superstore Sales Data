@@ -1,0 +1,164 @@
+# Clean duplicate date columns, enforce dtypes, and compute core KPIs and segments
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Ensure we use the existing dataframe
+try:
+    superstore_df
+except NameError:
+    superstore_df = pd.read_csv(r"C:\Users\FrankJR\Downloads\Portfolio\Superstore Dataset\Sample - Superstore.csv", encoding='ISO-8859-1')
+
+# First, let's thoroughly clean up duplicate columns
+print("Original columns:", superstore_df.columns.tolist())
+
+# Method 1: Remove duplicate columns by keeping only the first occurrence
+def remove_duplicate_columns(df):
+    """Remove duplicate columns from DataFrame"""
+    seen = {}
+    columns_to_keep = []
+    
+    for i, col in enumerate(df.columns):
+        # Strip whitespace from column names
+        clean_col = col.strip()
+        
+        if clean_col not in seen:
+            seen[clean_col] = True
+            columns_to_keep.append(col)  # Keep original column name reference
+        else:
+            print(f"Removing duplicate column: {col}")
+    
+    return df[columns_to_keep]
+
+# Clean the dataframe
+superstore_df = remove_duplicate_columns(superstore_df)
+superstore_df.columns = [c.strip() for c in superstore_df.columns]  # Now strip all column names
+
+print("Cleaned columns:", superstore_df.columns.tolist())
+
+# Method 2: Alternative approach - check if we still have duplicates
+if not superstore_df.columns.is_unique:
+    print("Warning: Still have duplicate column names after cleaning!")
+    # Use a more aggressive approach - rename duplicates
+    from collections import defaultdict
+    count = defaultdict(int)
+    new_columns = []
+    
+    for col in superstore_df.columns:
+        count[col] += 1
+        if count[col] > 1:
+            new_col = f"{col}_{count[col]}"
+            print(f"Renaming duplicate: {col} -> {new_col}")
+            new_columns.append(new_col)
+        else:
+            new_columns.append(col)
+    
+    superstore_df.columns = new_columns
+
+print("Final columns:", superstore_df.columns.tolist())
+
+# Now parse dates safely
+for col in ['Order_Date', 'Ship_Date']:
+    if col in superstore_df.columns:
+        print(f"Processing date column: {col}")
+        # Convert individual series instead of the whole dataframe approach
+        superstore_df[col] = pd.to_datetime(superstore_df[col], errors='coerce')
+    else:
+        print(f"Warning: Column '{col}' not found in dataframe")
+
+# Core metrics
+total_sales = superstore_df['Sales'].sum()
+total_profit = superstore_df['Profit'].sum()
+overall_margin = total_profit / total_sales if total_sales != 0 else np.nan
+
+print('Computed core KPIs')
+print('Total Sales:', total_sales)
+print('Total Profit:', total_profit)
+print('Overall Margin:', overall_margin)
+
+# Time series: monthly sales and profit
+superstore_df['Order_YearMonth'] = superstore_df['Order_Date'].dt.to_period('M').astype(str)
+monthly = superstore_df.groupby('Order_YearMonth').agg({'Sales':'sum','Profit':'sum'}).reset_index()
+monthly = monthly.sort_values('Order_YearMonth')
+
+print('Monthly head:')
+print(monthly.head())
+
+# Segmentation: by Segment and Category
+seg_cat = superstore_df.groupby(['Segment','Category']).agg({'Sales':'sum','Profit':'sum'}).reset_index()
+seg_cat['Margin'] = seg_cat['Profit'] / seg_cat['Sales']
+
+print('Segment-Category head:')
+print(seg_cat.head())
+
+# Regional performance
+region_perf = superstore_df.groupby('Region').agg({'Sales':'sum','Profit':'sum'}).reset_index()
+region_perf['Margin'] = region_perf['Profit'] / region_perf['Sales']
+
+print('Region performance:')
+print(region_perf)
+
+# Sub-category contribution
+subcat = superstore_df.groupby('Sub_Category').agg({'Sales':'sum','Profit':'sum'}).reset_index()
+subcat['Margin'] = subcat['Profit'] / subcat['Sales']
+subcat = subcat.sort_values('Sales', ascending=False)
+
+print('Top sub-categories by sales (head):')
+print(subcat.head(10))
+
+# Discount vs profit relationship
+# Bin discounts for a clearer view
+superstore_df['Discount_Bin'] = pd.cut(superstore_df['Discount'], bins=[-0.01,0.0,0.1,0.2,0.3,0.4,1.0], labels=['0','0-10','10-20','20-30','30-40','40+'])
+disc_perf = superstore_df.groupby('Discount_Bin').agg({'Sales':'sum','Profit':'sum'}).reset_index()
+disc_perf['Margin'] = disc_perf['Profit'] / disc_perf['Sales']
+
+print('Discount bin performance:')
+print(disc_perf)
+
+# Shipping speed impact: days to ship and profit
+superstore_df['Days_to_Ship'] = (superstore_df['Ship_Date'] - superstore_df['Order_Date']).dt.days
+ship_perf = superstore_df.groupby('Ship_Mode').agg({'Sales':'sum','Profit':'sum','Days_to_Ship':'mean'}).reset_index()
+ship_perf['Margin'] = ship_perf['Profit'] / ship_perf['Sales']
+
+print('Shipping performance by mode:')
+print(ship_perf)
+
+# Visuals
+sns.set(style='whitegrid')
+
+plt.figure(figsize=(10,5))
+sns.lineplot(data=monthly, x='Order_YearMonth', y='Sales', marker='o')
+plt.xticks(rotation=45, ha='right')
+plt.title('Monthly Sales Trend')
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(10,5))
+sns.barplot(data=region_perf.sort_values('Sales', ascending=False), x='Region', y='Sales')
+plt.title('Sales by Region')
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(10,5))
+sns.barplot(data=subcat.head(10), x='Sub_Category', y='Sales')
+plt.xticks(rotation=45, ha='right')
+plt.title('Top 10 Sub-Categories by Sales')
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(10,5))
+sns.barplot(data=disc_perf, x='Discount_Bin', y='Margin')
+plt.title('Margin by Discount Bin')
+plt.tight_layout()
+plt.show()
+
+# Save key tables for portfolio use
+monthly.to_csv('superstore_monthly.csv', index=False)
+seg_cat.to_csv('superstore_segment_category.csv', index=False)
+region_perf.to_csv('superstore_region_performance.csv', index=False)
+subcat.to_csv('superstore_subcategory_performance.csv', index=False)
+disc_perf.to_csv('superstore_discount_performance.csv', index=False)
+ship_perf.to_csv('superstore_shipping_performance.csv', index=False)
+
+print('Saved analysis tables to CSV files')
