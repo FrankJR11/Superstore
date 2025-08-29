@@ -1,0 +1,28 @@
+# Identify top-selling products by total Sales
+import pandas as pd
+
+# Assume superstore_df already in memory from earlier cleaning
+try:
+    superstore_df
+except NameError:
+    superstore_df = pd.read_csv(r"C:\Users\FrankJR\Downloads\Portfolio\Superstore Dataset\Sample - Superstore.csv", encoding='ISO-8859-1')
+    # Basic cleanup if reloaded
+    superstore_df.columns = [c.strip() for c in superstore_df.columns]
+
+# Ensure numeric Sales
+superstore_df['Sales'] = pd.to_numeric(superstore_df['Sales'], errors='coerce')
+
+# Group and aggregate
+top_products = (
+    superstore_df.groupby(['Product_ID','Product_Name'], as_index=False)['Sales']
+    .sum()
+    .sort_values('Sales', ascending=False)
+)
+
+# Show head
+print(top_products.head(10))
+
+# Save to CSV for download
+outfile = 'top_selling_products.csv'
+top_products.to_csv(outfile, index=False)
+print('Saved top products to ' + outfile)
