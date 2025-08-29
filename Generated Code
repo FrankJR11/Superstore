@@ -1,0 +1,62 @@
+# Investigate duplicate date columns causing the error and clean step-by-step
+import pandas as pd
+
+# Ensure dataframe exists
+try:
+    superstore_df
+except NameError:
+    superstore_df = pd.read_csv(r"C:\Users\FrankJR\Downloads\Portfolio\Superstore Dataset\Sample - Superstore.csv", encoding='ISO-8859-1')
+
+# Show raw columns and detect duplicates by name ignoring whitespace
+raw_cols = list(superstore_df.columns)
+print('Raw columns: ' + ', '.join(raw_cols))
+
+# Strip and check duplicates after stripping
+stripped_cols = [c.strip() for c in raw_cols]
+print('Stripped columns: ' + ', '.join(stripped_cols))
+
+# Build a mapping of original to stripped
+col_map = dict(zip(raw_cols, stripped_cols))
+print('Sample mapping (first 10):')
+print(list(col_map.items())[:10])
+
+# If stripping creates duplicates, we need to consolidate
+from collections import Counter
+counts = Counter(stripped_cols)
+print('Counts of stripped names that duplicate:')
+print({k:v for k,v in counts.items() if v>1})
+
+# Apply stripping but resolve collisions by dropping exact duplicate columns that only differ by whitespace
+# To be safe, if duplicates exist, keep the leftmost occurrence
+if any([v>1 for v in counts.values()]):
+    # Create a new dataframe manually to control duplicates
+    new_cols = []
+    keep_indices = []
+    seen = set()
+    for idx, orig in enumerate(raw_cols):
+        stripped = orig.strip()
+        if stripped in seen:
+            # skip duplicates
+            continue
+        seen.add(stripped)
+        new_cols.append(stripped)
+        keep_indices.append(idx)
+    cleaned_df = superstore_df.iloc[:, keep_indices].copy()
+    cleaned_df.columns = new_cols
+else:
+    cleaned_df = superstore_df.copy()
+    cleaned_df.columns = stripped_cols
+
+print('Cleaned columns: ' + ', '.join(list(cleaned_df.columns)))
+
+# Now parse date columns safely
+for col in ['Order_Date','Ship_Date']:
+    if col in cleaned_df.columns:
+        cleaned_df[col] = pd.to_datetime(cleaned_df[col], errors='coerce')
+
+print('Date parsing done. Nulls in Order_Date: ' + str(cleaned_df['Order_Date'].isna().sum()))
+print('Nulls in Ship_Date: ' + str(cleaned_df['Ship_Date'].isna().sum()))
+
+# Replace the original reference
+superstore_df = cleaned_df
+print('Reassigned cleaned dataframe to superstore_df')
