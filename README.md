@@ -1,4 +1,3 @@
-readme_text = """
 # Superstore Sales Analysis
 
 ## Brief Background
