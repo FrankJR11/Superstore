@@ -1,0 +1,30 @@
+# Aggregate sales by Region and show the top regions by total Sales
+import pandas as pd
+
+# Ensure dataframe is available
+try:
+    superstore_df
+except NameError:
+    superstore_df = pd.read_csv(r"C:\Users\FrankJR\Downloads\Portfolio\Superstore Dataset\Sample - Superstore.csv", encoding='ISO-8859-1')
+    superstore_df.columns = [c.strip() for c in superstore_df.columns]
+
+# Clean numeric
+superstore_df['Sales'] = pd.to_numeric(superstore_df['Sales'], errors='coerce')
+
+# Standardize Region text just in case
+if 'Region' in superstore_df.columns:
+    superstore_df['Region'] = superstore_df['Region'].astype(str).str.strip()
+
+region_sales = (
+    superstore_df.dropna(subset=['Region','Sales'])
+    .groupby('Region', as_index=False)['Sales']
+    .sum()
+    .sort_values('Sales', ascending=False)
+)
+
+print(region_sales.head())
+
+# Save for download
+outfile = 'region_sales.csv'
+region_sales.to_csv(outfile, index=False)
+print('Saved region sales to ' + outfile)
