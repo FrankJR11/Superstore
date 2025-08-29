@@ -1,6 +1,3 @@
-# Generate a README.md file for the Superstore Sales Analysis project
-from datetime import datetime
-
 readme_text = """
 # Superstore Sales Analysis
 
